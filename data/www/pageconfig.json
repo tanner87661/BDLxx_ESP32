@@ -1,0 +1,9 @@
+{
+	"Pages":[
+		{"Menue":"Node Configuration", "UseDec": 1, "UseALM":1, "ReqWifi": 0, "WebPage": "index.htm", "ID":"pgNodeCfg"}, 
+		{"Menue":"MQTT Configuration", "UseDec": 0, "UseALM":1, "ReqWifi": 1, "WebPage": "MQTTCfg.htm", "ID":"pgMQTTCfg"}, 
+		{"Menue":"Block Detector Setup", "UseDec": 0, "UseALM":1, "ReqWifi": 0, "WebPage": "BDLCfg.htm", "ID":"pgBDLCfg"}, 
+		{"Menue":"Display LED Setup", "UseDec": 1, "UseALM":1, "ReqWifi": 0, "WebPage": "LEDCfg.htm", "ID":"pgLEDCfg"},
+		{"Menue":"LocoNet Viewer", "UseDec": 1, "UseALM":1, "ReqWifi": 0, "ReqLN": 1, "WebPage": "LNViewer.htm", "ID":"pgLNViewer"}
+		]
+}

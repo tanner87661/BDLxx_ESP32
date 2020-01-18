@@ -139,9 +139,9 @@ function startWebsockets()
   		if ((myArr.Cmd == "LOX") && (scriptList.Pages[currentPage].ID == "pgBDLCfg"))
   		{
 			console.log(JSON.stringify(myArr.Data));
-			processLocoNetInput(myArr.Data);
+			processDistanceInput(myArr.Data);
 		}
-  		if ((myArr.Cmd == "LN") && (scriptList.Pages[currentPage].ID == "pgLNViewer"))
+  		if ((myArr.Cmd == "LN") && ((scriptList.Pages[currentPage].ID == "pgLNViewer") || (scriptList.Pages[currentPage].ID == "pgBDLCfg") || (scriptList.Pages[currentPage].ID == "pgRFIDCfg")))
 			processLocoNetInput(myArr.Data);
   		if (myArr.Cmd == "CfgData")
   		{

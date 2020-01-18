@@ -10,16 +10,58 @@ var configDHCPSection;
 var configAPBox;
 var moduleConfig;
 var modLoxConfig;
+var modRFIDConfig;
 var modHWBtnConfig;
 var modLNConfig;
 var modALMOnly;
 var modAlwaysOn;
 var modWifiOnly;
-var modDecoderOnly;
 var modWifiALMOnly;
 
 //commMode: 0: DCC, 1: LocoNet, 2: MQTT, 3: Gateway
 //workMode: 0: Decoder, 1: ALM
+
+function setUseRFID(sender)
+{
+	console.log(sender.id);
+	if (sender.id == "cbUseRFID")
+		configWorkData.useRFID = sender.checked;
+
+	setDisplayOptions();
+}
+
+function setRFID(sender)
+{
+	console.log(sender.id);
+	if (sender.id == "readerid")
+		configWorkData.RFIDConfig.readerID = verifyNumber(sender.value, configWorkData.RFIDConfig.readerID);
+	if (sender.id == "rfid_scl")
+		configWorkData.RFIDConfig.rfidSCK = verifyNumber(sender.value, configWorkData.RFIDConfig.rfidSCK);
+	if (sender.id == "rfid_sda")
+		configWorkData.RFIDConfig.rfidSDA_SS = verifyNumber(sender.value, configWorkData.RFIDConfig.rfidSDA_SS);
+	if (sender.id == "rfid_miso")
+		configWorkData.RFIDConfig.rfidMISO = verifyNumber(sender.value, configWorkData.RFIDConfig.rfidMISO);
+	if (sender.id == "rfid_mosi")
+		configWorkData.RFIDConfig.rfidMOSI = verifyNumber(sender.value, configWorkData.RFIDConfig.rfidMOSI);
+	if (sender.id == "rfid_rst")
+		configWorkData.RFIDConfig.rfidRST = verifyNumber(sender.value, configWorkData.RFIDConfig.rfidRST);
+	if (sender.id == "cbUseBCReq")
+		configWorkData.tagReqBroadcast = sender.checked;
+	if (sender.id == "cbUseTagMap")
+		configWorkData.sendMultiSense = sender.checked;
+	
+	setDisplayOptions();
+}
+
+function setLOX(sender)
+{
+	console.log(sender.id);
+	if (sender.id == "lox_sda")
+		configWorkData.LidarConfig.lidarSDA = verifyNumber(sender.value, configWorkData.LidarConfig.lidarSDA);
+	if (sender.id == "lox_scl")
+		configWorkData.LidarConfig.lidarSCL = verifyNumber(sender.value, configWorkData.LidarConfig.lidarSCL);
+	setDisplayOptions();
+}
 
 function setDisplayOptions()
 {
@@ -29,18 +71,16 @@ function setDisplayOptions()
 	configWorkData.useLocoNetModule = ((configWorkData.commMode == 1) || (configWorkData.commMode == 3)) ? 1:0;
 	writeCBInputField("cbUseMQTT", ((configWorkData.commMode == 2) || (configWorkData.commMode == 3)));
 	configWorkData.useMQTT = ((configWorkData.commMode == 2) || (configWorkData.commMode == 3)) ? 1:0;
-//	writeCBInputField("cbUseGW", configWorkData.commMode == 3);
-//	configWorkData.useGateway = configWorkData.commMode == 3 ? 1:0;
+	writeCBInputField("cbUseLidar", true);
 
 	setVisibility((configWorkData.wifiMode & 0x02) > 0, configAPModuleBox);
 	setVisibility((configWorkData.wifiMode & 0x02) > 0, configAPBox);
 	setVisibility(configWorkData.useNTP, configNTPBox);
 	setVisibility((configWorkData.wifiMode & 0x01) > 0, configDHCPSection);
 	setVisibility(configWorkData.useStaticIP, configDHCPBox);
-//	setVisibility(configWorkData.useDCC, modLoxConfig);
+//	setVisibility(configWorkData.useLidar, modLoxConfig);
 	setVisibility(configWorkData.useLocoNetModule, modLNConfig);
-//	setVisibility(configWorkData.useButtonModule, modHWBtnConfig);
-//	setVisibility(configWorkData.workMode==0, modDecoderOnly);
+	setVisibility(configWorkData.useRFID, modRFIDConfig);
 //	setVisibility(configWorkData.workMode==1, modALMOnly);
 	setVisibility(configWorkData.useWifiTimeout==0, modWifiOnly);
 //	setVisibility((configWorkData.useWifiTimeout==0) && (configWorkData.useWifiTimeout==0), modWifiALMOnly);
@@ -48,6 +88,7 @@ function setDisplayOptions()
 //	enableInput(false, "cbUseGW");
 	enableInput(false, "cbUseMQTT");
 	enableInput(false, "cbUseLN");
+	enableInput(false, "cbUseLidar");
 }
 
 function loadCommOptions()
@@ -326,12 +367,28 @@ function constructPageContent(contentTab)
 			tempObj = createEmptyDiv(modAlwaysOn, "div", "tile-1", "");
 				createCheckbox(tempObj, "tile-1_4", "use LED Chain Module", "cbUseLEDChain", "setUseLEDChain(this)");
 				
-		modALMOnly = createEmptyDiv(mainScrollBox, "div", "tile-1", "wifionlycontrolbox");
-		modDecoderOnly = createEmptyDiv(mainScrollBox, "div", "tile-1", "wifionlycontrolbox");
+			tempObj = createEmptyDiv(modAlwaysOn, "div", "tile-1", "");
+				createCheckbox(tempObj, "tile-1_4", "use Lidar", "cbUseLidar", "setUseLidar(this)");
+				modLoxConfig = createEmptyDiv(tempObj, "div", "tile-1", "");
+					createTextInput(modLoxConfig, "tile-1_4", "SDA Pin", "n/a", "lox_sda", "setLOX(this)");
+					createTextInput(modLoxConfig, "tile-1_4", "SCL Pin", "n/a", "lox_scl", "setLOX(this)");
 
-			modLoxConfig = createEmptyDiv(modDecoderOnly, "div", "tile-1", "");
-				createTextInput(modLoxConfig, "tile-1_4", "SDA Pin", "n/a", "lox_sda", "setLOX(this)");
-				createTextInput(modLoxConfig, "tile-1_4", "SCL Pin", "n/a", "lox_scl", "setLOX(this)");
+			tempObj = createEmptyDiv(modAlwaysOn, "div", "tile-1", "");
+				createCheckbox(tempObj, "tile-1_4", "use RFID Reader", "cbUseRFID", "setUseRFID(this)");
+				modRFIDConfig = createEmptyDiv(modAlwaysOn, "div", "tile-1", "");
+				tempObj = createEmptyDiv(modRFIDConfig, "div", "tile-1", "");
+					createTextInput(modRFIDConfig, "tile-1_4", "Reader ID", "n/a", "readerid", "setRFID(this)");
+				tempObj = createEmptyDiv(modRFIDConfig, "div", "tile-1", "");
+					createTextInput(modRFIDConfig, "tile-1_4", "SDA Pin", "n/a", "rfid_sda", "setRFID(this)");
+					createTextInput(modRFIDConfig, "tile-1_4", "SCL Pin", "n/a", "rfid_scl", "setRFID(this)");
+				tempObj = createEmptyDiv(modRFIDConfig, "div", "tile-1", "");
+					createTextInput(modRFIDConfig, "tile-1_4", "MISO Pin", "n/a", "rfid_miso", "setRFID(this)");
+					createTextInput(modRFIDConfig, "tile-1_4", "MOSI Pin", "n/a", "rfid_mosi", "setRFID(this)");
+				tempObj = createEmptyDiv(modRFIDConfig, "div", "tile-1", "");
+					createTextInput(modRFIDConfig, "tile-1_4", "Restart Pin", "n/a", "rfid_rst", "setRFID(this)");
+				tempObj = createEmptyDiv(modRFIDConfig, "div", "tile-1", "");
+					createCheckbox(modRFIDConfig, "tile-1_4", "respond Broadcast requests", "cbUseBCReq", "setUseRFID(this)");
+					createCheckbox(modRFIDConfig, "tile-1_4", "send DCC Map Data", "cbUseTagMap", "setUseRFID(this)");
 
 
 		modWifiOnly = createEmptyDiv(mainScrollBox, "div", "tile-1", "wifionlycontrolbox");
@@ -391,19 +448,11 @@ function loadDataFields(jsonData)
 
 	writeRBInputField("selectworkmode", jsonData.workMode);
 	
-//	setVisibility(jsonData.useDCC, modDCCConfig);
 	writeInputField("lox_sda", jsonData.LidarConfig.lidarSDA);
 	writeInputField("lox_scl", jsonData.LidarConfig.lidarSCL);
 
-//	writeCBInputField("cbUseHWBtn", jsonData.useButtonModule);
-//	setVisibility(jsonData.useButtonModule, modHWBtnConfig);
-//	writeInputField("btnaddr", jsonData.BtnModConfig.AddrPins);
-//	writeInputField("btndata", jsonData.BtnModConfig.DataPins);
-
-//	writeCBInputField("cbUseBtnHdlr", jsonData.useButtonHandler);
 	writeCBInputField("cbUseLEDChain", jsonData.useLEDModule);
 	writeCBInputField("cbUseMQTT", jsonData.useMQTT);
-//	writeCBInputField("cbUseGW", jsonData.useGateway);
 
 	writeCBInputField("cbUseLN", jsonData.useLocoNetModule);
 	setVisibility(jsonData.useLocoNetModule, modLNConfig);
@@ -416,6 +465,17 @@ function loadDataFields(jsonData)
 	setVisibility(jsonData.useNTP, configNTPBox);
 	writeInputField("ntpserverurl", jsonData.ntpConfig.NTPServer);
 	writeInputField("ntptimezone", jsonData.ntpConfig.ntpTimeZone);
+
+	writeCBInputField("cbUseRFID", jsonData.useRFID);
+	writeInputField("readerid", jsonData.RFIDConfig.readerID);
+	writeCBInputField("cbUseBCReq", jsonData.RFIDConfig.tagReqBroadcast);
+	writeCBInputField("cbUseTagMap", jsonData.RFIDConfig.sendMultiSense);
+	writeInputField("rfid_scl", jsonData.RFIDConfig.rfidSCK);
+	writeInputField("rfid_sda", jsonData.RFIDConfig.rfidSDA_SS);
+	writeInputField("rfid_miso", jsonData.RFIDConfig.rfidMISO);
+	writeInputField("rfid_mosi", jsonData.RFIDConfig.rfidMOSI);
+	writeInputField("rfid_rst", jsonData.RFIDConfig.rfidRST);
+
 	loadCommOptions();
 	setDisplayOptions();
 }

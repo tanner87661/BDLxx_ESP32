@@ -103,7 +103,7 @@ void processStatustoWebClient()
     {
       now = time(0);
       char buff[40]; //39 digits plus the null char
-      strftime(buff, 40, "%d-%m-%y %H:%M:%S", localtime(&now));
+      strftime(buff, 40, "%a %m/%d/%Y %H:%M:%S", localtime(&now));
       Data["systime"] = buff;
     }
     Data["freemem"] = String(ESP.getFreeHeap());
@@ -141,6 +141,8 @@ void processWsMesssage(String newMsg,AsyncWebSocketClient * client)
         String fileStr = "{\"Cmd\":\"CfgData\", \"Type\":\"" + cmdType + "\",\"Data\":";
         if (cmdType == "pgNodeCfg")
           fileStr += readFile("/configdata/node.cfg");
+        if (cmdType == "pgRFIDCfg")
+          fileStr += readFile("/configdata/rfid.cfg");
         if (cmdType == "pgMQTTCfg")
           fileStr += readFile("/configdata/mqtt.cfg");
         if (cmdType == "pgBDLCfg")
@@ -160,6 +162,8 @@ void processWsMesssage(String newMsg,AsyncWebSocketClient * client)
         String fileStr = doc["Data"];
         if (cmdType == "pgNodeCfg")
           writeJSONFile("/configdata/node.cfg", fileStr);
+        if (cmdType == "pgRFIDCfg")
+          writeJSONFile("/configdata/rfid.cfg", fileStr);
         if (cmdType == "pgMQTTCfg")
           writeJSONFile("/configdata/mqtt.cfg", fileStr);
         if (cmdType == "pgBDLCfg")

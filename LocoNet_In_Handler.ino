@@ -37,7 +37,25 @@ void processLNValidMsg(lnReceiveBuffer * newData)
 //     Serial.print(" ");
 //   }
 //   Serial.println();
-  processLocoNetMsg(newData);
+  switch (newData->lnData[0])
+  {
+    case 0xE5:
+      switch (newData->lnData[1])
+      {
+        case 0x14:
+          //send to RFID reader object
+          if ((newData->lnData[2] == 0x06) and (newData->lnData[3] == 0x20))
+            if (myRFID) myRFID->processLocoNetMsg(newData);
+          break;
+        default:
+          processLocoNetMsg(newData);
+          break;
+      }
+      break;
+    default:
+      processLocoNetMsg(newData);
+      break;
+  }
   if (globalClient != NULL)
     processLNtoWebClient(newData);
 }

@@ -14,6 +14,14 @@ uint32_t nextUpdate = millis() + pgUpdateInterval;
 
 void initTriggers(DynamicJsonDocument doc)
 {
+  if (doc.containsKey("sendAnalog"))
+    sendAnalogMsg = doc["sendAnalog"];
+  if (doc.containsKey("analogAddr"))
+    analogAddr = doc["analogAddr"];
+  if (doc.containsKey("maxDistance"))
+    maxAnalogRange = doc["maxDistance"];
+  if (doc.containsKey("txThreshold"))
+    distMsgThreshold = doc["txThreshold"];
   if (doc.containsKey("BDTriggers"))
   {
     JsonArray BDTriggers = doc["BDTriggers"];
@@ -40,7 +48,7 @@ void processTriggers(uint16_t currDistance)
 
       if ((triggerList[i].triggerStatus & 0x01) != ((triggerList[i].triggerStatus & 0x10) >> 4))
       {
-        Serial.printf("Send BD %i %i \n", triggerList[i].inpRepNr, triggerList[i].triggerStatus & 0x01);
+//        Serial.printf("Send BD %i %i \n", triggerList[i].inpRepNr, triggerList[i].triggerStatus & 0x01);
         sendBlockDetectorCommand(triggerList[i].inpRepNr, triggerList[i].triggerStatus & 0x01);
         triggerList[i].triggerStatus ^= 0x10;
 //        break;
@@ -63,6 +71,14 @@ void processTriggers(uint16_t currDistance)
     nextUpdate += pgUpdateInterval;
     if (nextUpdate < millis())
       nextUpdate = millis() + pgUpdateInterval;
+  }
+//  Serial.printf("Analog Data: Curr: %i max %i lastVal %i Thresh: %i\n", currDistance, maxAnalogRange, lastAnalogValue, distMsgThreshold);
+  if (sendAnalogMsg && (abs(min(currDistance, maxAnalogRange) - lastAnalogValue) > distMsgThreshold))
+  {
+    Serial.println("Send Analog");
+    lastAnalogValue = min(currDistance, maxAnalogRange);
+    uint16_t txValue = trunc(4095 / maxAnalogRange * lastAnalogValue);
+    onAnalogData(analogAddr, txValue);
   }
 }
 

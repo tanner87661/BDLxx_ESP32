@@ -1,7 +1,16 @@
-const String BBVersion = "1.1.0";
+const String BBVersion = "1.2.0";
 
 //#define measurePerformance //uncomment this to display the number of loop cycles per second
 
+//SELECT only one of the following two options
+//#define useVL53L0X
+#define useVL53L1X
+
+#ifdef useVL53L0X
+  #ifdef useVL53L1X
+  You can't have both reader types activated at the same time!
+  #endif
+#endif
 //Arduino published libraries. Install using the Arduino IDE or download from Github and install manually
 #include <arduino.h>
 #include <EEPROM.h> //standard library, can be installed in the Arduino IDE
@@ -13,14 +22,20 @@ const String BBVersion = "1.1.0";
 #include <SPIFFS.h>
 #define FORMAT_SPIFFS_IF_FAILED true
 #include <ArduinoJson.h> //standard JSON library, can be installed in the Arduino IDE. Make sure to use version 6.x
-#include <Adafruit_VL53L0X.h>
-#include <wire.h>
+#include <Wire.h>
+#ifdef useVL53L0X
+  #include <Adafruit_VL53L0X.h>
+#endif
+#ifdef useVL53L1X
+  #include <VL53L1X.h>
+#endif
 
 //following libraries can be downloaded from https://github.com/tanner87661?tab=repositories
 #include <IoTT_DigitraxBuffers.h> //as introduced in video # 30
 #include <IoTT_LEDChain.h> //as introduced in video # 30
 #include <IoTT_LocoNetHBESP32.h> //this is a hybrid library introduced in video #29
 #include <IoTT_MQTTESP32.h> //as introduced in video # 29
+#include <IoTT_RFIDReader.h>
 #include <OneDimKalman.h>
 
 //library object pointers. Libraries will be dynamically initialized as needed during the setup() function
@@ -58,8 +73,22 @@ LocoNetESPSerial * lnSerial = NULL;
 IoTT_ledChain * myChain = NULL;
 MQTTESP32 * lnMQTT = NULL;
 
-Adafruit_VL53L0X lox = Adafruit_VL53L0X(); //default address 0x29
-VL53L0X_RangingMeasurementData_t measure;
+#ifdef useVL53L0X
+  Adafruit_VL53L0X lox = Adafruit_VL53L0X(); //default address 0x29
+  VL53L0X_RangingMeasurementData_t measure;
+#endif
+#ifdef useVL53L1X
+  VL53L1X lox;
+#endif
+
+bool sendAnalogMsg = false;
+uint16_t analogAddr = 0;
+uint16_t lastAnalogValue = 0;
+uint16_t maxAnalogRange = 4000; //highest accepted value, to be normalized to 12bit ADC (4095)
+uint16_t distMsgThreshold = 100; //mm difference to last value to trigger a new message
+
+IoTT_RFIDReader * myRFID = NULL;
+
 uint16_t echoDistance;
 OneDimKalman distKalman;
 
@@ -170,14 +199,46 @@ void setup() {
     else 
       Serial.println("LocoNet not activated");
 
+    if (jsonConfigObj->containsKey("useRFID"))
+      if ((*jsonConfigObj)["useRFID"] == 1)
+      {
+        if (jsonConfigObj->containsKey("RFIDConfig"))
+        {
+          uint8_t pinSCK = (*jsonConfigObj)["RFIDConfig"]["rfidSCK"];
+          uint8_t pinSDA_SS = (*jsonConfigObj)["RFIDConfig"]["rfidSDA_SS"];
+          uint8_t pinMISO = (*jsonConfigObj)["RFIDConfig"]["rfidMISO"];
+          uint8_t pinMOSI = (*jsonConfigObj)["RFIDConfig"]["rfidMOSI"];
+          uint8_t pinRST = (*jsonConfigObj)["RFIDConfig"]["rfidRST"];
+
+          myRFID = new IoTT_RFIDReader();
+          myRFID->loadRFIDReaderCfgJSON((*jsonConfigObj)["RFIDConfig"], true);
+          if (!myRFID->performSelfTest())
+          {
+            Serial.println(F("Failed to boot RFID reader, restart chip"));
+            delay(500);
+            ESP.restart();
+          }
+          myRFID->setTxFunction(&sendMsg); 
+        }
+        Serial.println("Load Tag Map Data");  
+        jsonDataObj = getDocPtr("/configdata/rfid.cfg");
+        if (jsonDataObj != NULL)
+        {
+          myRFID->loadRFIDTagMapJSON(*jsonDataObj);
+          delete(jsonDataObj);
+        }
+      }
+
     if (jsonConfigObj->containsKey("LidarConfig"))
     {
       uint8_t pinSDA = (*jsonConfigObj)["LidarConfig"]["lidarSDA"];
       uint8_t pinSCL = (*jsonConfigObj)["LidarConfig"]["lidarSCL"];
-      Serial.println(pinSDA, pinSCL);
+      Serial.printf("SDA: %i SCL: %i\n", pinSDA, pinSCL);
       Wire.begin(pinSDA, pinSCL); //SDA, SCL. frequency 18/19
-      Wire.setClock(100000);
+      Wire.setClock(400000);
       delay(100);
+
+#ifdef useVL53L0X
       Serial.println("Adafruit VL53L0X test");
       if (!lox.begin()) 
       {
@@ -185,6 +246,29 @@ void setup() {
         delay(500);
         ESP.restart();
       }
+#endif
+#ifdef useVL53L1X
+      Serial.println("Sparkfun VL53L1X test");
+      if (!lox.init()) //Begin returns 0 on a good init
+      {
+        Serial.println(F("Failed to boot VL53L1X, restart chip"));
+        delay(500);
+        ESP.restart();
+      }
+  // Use long distance mode and allow up to 50000 us (50 ms) for a measurement.
+  // You can change these settings to adjust the performance of the sensor, but
+  // the minimum timing budget is 20 ms for short distance mode and 33 ms for
+  // medium and long distance modes. See the VL53L1X datasheet for more
+  // information on range and timing limits.
+      lox.setDistanceMode(VL53L1X::Long);
+      lox.setMeasurementTimingBudget(75000);
+      initVL53L1(lox); //added functionality that is not in the class library
+  // Start continuous readings at a rate of one measurement every 50 ms (the
+  // inter-measurement period). This period should be at least as long as the
+  // timing budget.
+      lox.startContinuous(100);
+#endif
+
       Serial.println("Load Block Detector Data");  
       jsonDataObj = getDocPtr("/configdata/bdl.cfg");
       if (jsonDataObj != NULL)
@@ -276,9 +360,11 @@ void loop() {
   if (millis() > myTimer)
   {
     Serial.printf("Timer Loop: %i\n", loopCtr);
-//    Serial.printf("Distance (mm): %i \n", echoDistance); 
     loopCtr = 0;
     myTimer += 1000;
+  #ifdef useVL53L1X
+    Serial.println(echoDistance);
+  #endif
   }
 #endif  
 
@@ -314,9 +400,20 @@ void loop() {
     if (lnSerial) 
       lnSerial->processLoop(); //handling all LocoNet communication
 
+
+#ifdef useVL53L0X
   lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
   uint16_t thisDistance = measure.RangeMilliMeter;
+#endif
+#ifdef useVL53L1X
+  lox.read();
+  uint16_t thisDistance = lox.ranging_data.range_mm;
+#endif
+
   echoDistance = round(distKalman.getEstimate(thisDistance));
   processTriggers(echoDistance);
+
+  if (myRFID) myRFID->scanRFID();
+  
   processBufferUpdates(); //updating DigitraxBuffers by querying information from LocoNet, e.g. slot statuses
 }
